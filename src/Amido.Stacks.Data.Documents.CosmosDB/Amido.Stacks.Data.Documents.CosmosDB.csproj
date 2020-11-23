@@ -2,7 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>7.3</LangVersion>
+    <Description>Cosmos Db package for common features used throughout the projects.</Description>
+    <Company>Amido</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/amido/stacks-dotnet-packages-cosmosdb</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/amido/stacks-dotnet-packages-cosmosdb</RepositoryUrl>
+    <RepositoryType>GIT</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
