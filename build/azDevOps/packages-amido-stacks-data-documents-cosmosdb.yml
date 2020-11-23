@@ -1,0 +1,178 @@
+name: $(build.SourceBranchName)-init
+
+variables:
+  # General Information
+  - name: company
+    value: "amido"
+  - name: project
+    value: "dotnet-pkgs"
+  - name: domain
+    value: "stacks"
+
+  - name: self_repo
+    value: stacks-dotnet-packages-cosmosdb
+  - name: self_repo_tf_src
+    value: deploy/azure/app/kube
+
+  # TF STATE CONFIG
+  - name: tf_state_rg
+    value: amido-stacks-rg-uks
+  - name: tf_state_storage
+    value: amidostackstfstategbl
+  - name: tf_state_container
+    value: tfstate
+  - name: tf_state_key
+    value: dotnet-packages
+
+  # Versioning
+  - name: Version.Major
+    value: 0
+  - name: Version.Minor
+    value: 1
+  - name: Version.Revision
+    value: $[counter(variables['Version.Minor'], 0)]
+  - name: Version.Number
+    value: $(Version.Major).$(Version.Minor).$(Version.Revision)
+
+  # DevOps Scripts Package Info
+  - name: DevOps.File
+    value: scripts-1.1.0-master.tar.gz
+  - name: DevOps.Container
+    value: packages
+  - name: DevOps.storageAccount
+    value: amidostacksuksprod
+  - name: DevOps.RG
+    value: amido-stacks-rg-uks-prod
+
+  # Path specific for this package, change accordingly
+  - name: Package.Feed
+    value: "Stacks"
+  - name: Package.Public
+    value: true
+  - name: Package.nuget_service_connection
+    value: NuGetAmidoStacksServiceConnection
+  - name: Package.Path
+    value: "src/Amido.Stacks.Data.Documents.CosmosDB"
+  - name: Test.Path
+    value: "$(Package.Path).Tests"
+  - name: BuildPipeline.Path
+    value: "build/azDevOps/packages-amido-stacks-data-documents-cosmosdb.yml"
+
+  # Environmental Vars required for any tests go here:
+  - name: CosmosDB__DatabaseContainer
+    value: SampleEntity
+
+#Trigger paths specific for this package, change accordingly
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+      - bug*
+
+# Only build PRs into Master
+pr:
+  branches:
+    include:
+      - main
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: amido/stacks-pipeline-templates
+      ref: refs/tags/v1.4.17
+      endpoint: amidostacks # Created when you set up the connection to GitHub from Azure DevOps
+  containers:
+    - container: terraform_custom
+      image: amidostacks/ci-tf:0.0.4
+
+stages:
+  - stage: BuildAndDeploy
+    variables:
+      - group: amido-stacks-infra-credentials-nonprod
+    jobs:
+      - job: AppInfraDeploy
+        container: terraform_custom
+        pool:
+          vmImage: ubuntu-18.04
+        steps:
+          - checkout: self
+
+          - checkout: templates
+
+          - template: azDevOps/azure/templates/v2/steps/deploy-terraform-resource.yml@templates
+            parameters:
+              # Terraform Basic Config
+              terraform_working_dir: "$(Agent.BuildDirectory)/s/$(self_repo)/$(self_repo_tf_src)"
+              # changing this would require changing the downstream consumers of these outputs
+              #
+              terraform_output_artefact: "tfoutputs"
+              # Terraform State Config
+              terraform_backend_client_id: $(azure_client_id)
+              terraform_backend_client_secret: $(azure_client_secret)
+              terraform_backend_tenant_id: $(azure_tenant_id)
+              terraform_backend_subscription_id: $(azure_subscription_id)
+              terraform_state_rg: $(tf_state_rg)
+              terraform_state_storage: $(tf_state_storage)
+              terraform_state_container: $(tf_state_container)
+              terraform_state_key: $(tf_state_key)
+              # Azure Config
+              azure_client_id: "$(azure_client_id)"
+              azure_client_secret: "$(azure_client_secret)"
+              azure_tenant_id: "$(azure_tenant_id)"
+              azure_subscription_id: "$(azure_subscription_id)"
+              # for branch based builds this can be $(Build.SourceBranchName)
+              terraform_state_workspace: dev
+              # Global Config
+              company: $(company)
+              project: $(project)
+              environment: ""
+              azure_cli_providers: []
+              tags: ""
+              # Terraform Resource Specific Config
+              terraform_extra_properties:
+                {
+                  TF_VAR_name_company: $(company),
+                  TF_VAR_name_project: $(project),
+                  TF_VAR_name_domain: $(domain),
+
+                  TF_VAR_cosmosdb_sql_container: "$(CosmosDB__DatabaseContainer)",
+                  TF_VAR_cosmosdb_sql_container_partition_key: "/OwnerId",
+                  TF_VAR_cosmosdb_kind: "GlobalDocumentDB",
+                  TF_VAR_cosmosdb_offer_type: "Standard",
+
+                  TF_VAR_stage: "pkgs",
+
+                  TF_VAR_resource_group_location: northeurope,
+                }
+              terraform_output_commands: |
+                raw_tf=$(terraform output -json | jq -r 'keys[] as $k | "##vso[task.setvariable variable=\($k);isOutput=true]\(.[$k] | .value)"')
+                readarray -t outputs <<<"$raw_tf"
+                for i in "${outputs[@]}"; do echo "$i"; done
+
+      - job: BuildAndDeployPackage
+        dependsOn: AppInfraDeploy
+        pool:
+          vmImage: windows-2019
+        continueOnError: false
+        variables:
+          CosmosDb__DatabaseName: $[ dependencies.AppInfraDeploy.outputs['tfoutputs.cosmosdb_database_name'] ]
+          CosmosDb__DatabaseAccountUri: $[ dependencies.AppInfraDeploy.outputs['tfoutputs.cosmosdb_endpoint'] ]
+          COSMOSDB_KEY: $[ dependencies.AppInfraDeploy.outputs['tfoutputs.cosmosdb_primary_master_key'] ]
+        steps:
+          - template: azDevOps/azure/templates/v2/steps/build-dotnet-package.yml@templates
+            parameters:
+              # Version Config
+              sourcebranch_name: "$(Build.SourceBranchName)"
+              raw_version_number: "$(Version.Number)"
+              # Build Config
+              test_path: "$(Test.Path)"
+              package_path: "$(Package.Path)"
+              # Deploy Config
+              package_feed: "$(Package.Feed)"
+              publish_symbols: true
+              publish_public: "$(Package.Public)"
+              nuget_service_connection: "$(Package.nuget_service_connection)"
+              # .NET Core version variables
+              dotnet_core_version: "3.1.x"
