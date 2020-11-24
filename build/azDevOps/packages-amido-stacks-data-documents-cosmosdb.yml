@@ -1,4 +1,4 @@
-name: $(build.SourceBranchName)-init
+name: $(Build.SourceBranchName)-init
 
 variables:
   # General Information
@@ -8,32 +8,28 @@ variables:
     value: "dotnet-pkgs"
   - name: domain
     value: "stacks"
-
-  - name: self_repo
-    value: stacks-dotnet-packages-cosmosdb
-  - name: self_repo_tf_src
-    value: deploy/azure/app/kube
-
-  # TF STATE CONFIG
-  - name: tf_state_rg
-    value: amido-stacks-rg-uks
-  - name: tf_state_storage
-    value: amidostackstfstategbl
-  - name: tf_state_container
-    value: tfstate
-  - name: tf_state_key
-    value: dotnet-packages
-
   # Versioning
   - name: Version.Major
     value: 0
   - name: Version.Minor
-    value: 1
+    value: 2
   - name: Version.Revision
     value: $[counter(variables['Version.Minor'], 0)]
   - name: Version.Number
     value: $(Version.Major).$(Version.Minor).$(Version.Revision)
-
+  # SelfConfig
+  - name: self_repo
+    value: stacks-dotnet-packages-cosmosdb
+  - name: self_repo_dir
+    value: "$(Agent.BuildDirectory)/s/$(self_repo)"
+  - name: self_repo_tf_src
+    value: deploy/azure/app/kube
+  - name: self_repo_tf_dir
+    value: "$(self_repo_dir)/$(self_repo_tf_src)"
+  - name: self_pipeline_repo
+    value: "$(Agent.BuildDirectory)/s/stacks-pipeline-templates"
+  - name: self_pipeline_scripts_dir
+    value: "$(self_pipeline_repo)/scripts"
   # DevOps Scripts Package Info
   - name: DevOps.File
     value: scripts-1.1.0-master.tar.gz
@@ -43,7 +39,6 @@ variables:
     value: amidostacksuksprod
   - name: DevOps.RG
     value: amido-stacks-rg-uks-prod
-
   # Path specific for this package, change accordingly
   - name: Package.Feed
     value: "Stacks"
@@ -57,20 +52,34 @@ variables:
     value: "$(Package.Path).Tests"
   - name: BuildPipeline.Path
     value: "build/azDevOps/packages-amido-stacks-data-documents-cosmosdb.yml"
-
-  # Environmental Vars required for any tests go here:
+  # Environment Vars required for any tests go here:
   - name: CosmosDB__DatabaseContainer
     value: SampleEntity
+  # Yamllint
+  - name: yamllint_config_file
+    value: "${{ variables.self_repo_dir }}/yamllint.conf"
+  - name: yamllint_scan_directory
+    value: "."
+  # Tf State Config
+  - name: tf_state_rg
+    value: amido-stacks-rg-uks
+  - name: tf_state_storage
+    value: amidostackstfstategbl
+  - name: tf_state_container
+    value: tfstate
+  - name: tf_state_key
+    value: dotnet-packages
 
-#Trigger paths specific for this package, change accordingly
+# Trigger paths specific for this package, change accordingly
 trigger:
   branches:
     include:
-      - main
-      - feature/*
-      - bug*
+    - 'main'
+  paths:
+    include:
+    - '*'
 
-# Only build PRs into Master
+# Only build PRs into Main
 pr:
   branches:
     include:
@@ -81,9 +90,11 @@ resources:
     - repository: templates
       type: github
       name: amido/stacks-pipeline-templates
-      ref: refs/tags/v1.4.17
+      ref: refs/tags/v1.4.22
       endpoint: amidostacks # Created when you set up the connection to GitHub from Azure DevOps
   containers:
+    - container: k8s_deploy
+      image: amidostacks/ci-k8s:0.0.11
     - container: terraform_custom
       image: amidostacks/ci-tf:0.0.4
 
@@ -92,7 +103,37 @@ stages:
     variables:
       - group: amido-stacks-infra-credentials-nonprod
     jobs:
+      - job: Validation
+        pool:
+          vmImage: "ubuntu-18.04"
+        steps:
+          - checkout: self
+
+          - checkout: templates
+
+          # Update Build Number
+          - template: azDevOps/azure/templates/v2/steps/build-updatebuildnumber-dotnet.yml@templates
+            parameters:
+              sourcebranch_name: "$(Build.SourceBranchName)"
+              raw_version_number: "$(Version.Number)"
+
+          # Validates all YAML files in the repo to check they adhere to standards
+          - template: azDevOps/azure/templates/v3/steps/build/test-validate-yaml.yml@templates
+            parameters:
+              pipeline_scripts_directory: "${{ variables.self_pipeline_scripts_dir }}"
+              container: "k8s_deploy"
+              yamllint_config_file: "${{ variables.yamllint_config_file }}"
+              yamllint_scan_directory: "${{ variables.yamllint_scan_directory }}"
+
+          # Runs a terraform fomatting check and a validation check
+          - template: azDevOps/azure/templates/v3/steps/build/test-validate-terraform.yml@templates
+            parameters:
+              pipeline_scripts_directory: "${{ variables.self_pipeline_scripts_dir }}"
+              terraform_container: "terraform_custom"
+              terraform_directory: "${{ variables.self_repo_tf_dir }}"
+
       - job: AppInfraDeploy
+        dependsOn: Validation
         container: terraform_custom
         pool:
           vmImage: ubuntu-18.04
@@ -154,7 +195,7 @@ stages:
       - job: BuildAndDeployPackage
         dependsOn: AppInfraDeploy
         pool:
-          vmImage: windows-2019
+          vmImage: "windows-2019"
         continueOnError: false
         variables:
           CosmosDb__DatabaseName: $[ dependencies.AppInfraDeploy.outputs['tfoutputs.cosmosdb_database_name'] ]
@@ -163,9 +204,6 @@ stages:
         steps:
           - template: azDevOps/azure/templates/v2/steps/build-dotnet-package.yml@templates
             parameters:
-              # Version Config
-              sourcebranch_name: "$(Build.SourceBranchName)"
-              raw_version_number: "$(Version.Number)"
               # Build Config
               test_path: "$(Test.Path)"
               package_path: "$(Package.Path)"
