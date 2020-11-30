@@ -74,10 +74,10 @@ variables:
 trigger:
   branches:
     include:
-    - 'main'
+      - main
   paths:
     include:
-    - '*'
+      - '*'
 
 # Only build PRs into Main
 pr:
