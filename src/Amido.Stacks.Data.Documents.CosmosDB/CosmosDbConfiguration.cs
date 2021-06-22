@@ -8,9 +8,12 @@ namespace Amido.Stacks.Data.Documents.CosmosDB
         public string DatabaseAccountUri { get; set; }
 
         public string DatabaseName { get; set; }
+        public string DatabasePrimaryKey { get; set; }
 
         //public string SecurityKey { get; set; }
         public Secret SecurityKeySecret { get; set; }
+        
+
 
         //public bool ReturnETags { get; set; }
 

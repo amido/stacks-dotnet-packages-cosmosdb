@@ -1,6 +1,7 @@
 ## Testing Guidance
 
-CosmosDB tests retrieve the key to connect to CosmosDB from Environment Variables(COSMOSDB_KEY, configured in the appsettings.json).
+CosmosDB tests retrieve the key to connect to CosmosDB from Environment Variables(COSMOSDB_KEY, and primary key which are configured in the appsettings.json).
+Once you set up running the CosmosDB emulator locally, set DatabasePrimaryKey in appsettings.json accordingly.
 
 When running on visual studio and configured to run against localhost, we use the CosmosDB emulator without need to set it in advance.
 
