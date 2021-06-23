@@ -22,7 +22,7 @@ namespace Amido.Stacks.Data.Documents.CosmosDB.Tests.Integration
 
             //Notes:
             // if using an azure instance to run the tests, make sure you set the environment variable before you start visual studio
-            // Ex: CMD C:\> setx COSMOSDB_KEY ABCDEFGASD==
+            // Ex: CMD C:\> set COSMOSDB_KEY ABCDEFGASD==
             // On CosmosDB, make sure you create the collection 'SampleEntity' in the database defined in the config 'Stacks'
             // To overrride the appsettings values, set the environment variable using SectionName__PropertyName. i.e: CosmosDB__DatabaseAccountUri
             // Note the use of a double _ between the section and the property name
@@ -33,17 +33,16 @@ namespace Amido.Stacks.Data.Documents.CosmosDB.Tests.Integration
                 if (Settings.DatabaseAccountUri.Contains("localhost", StringComparison.InvariantCultureIgnoreCase) &&
                     Environment.GetEnvironmentVariable("VisualStudioEdition") != null)
                 {
-                    var primaryString = this.Settings.DatabasePrimaryKey;
+                    var databasePrimaryKey = this.Settings.DatabasePrimaryKey;
                     Environment.SetEnvironmentVariable(Settings.SecurityKeySecret.Identifier,
-                        primaryString);
-                }
-                else
-                {
-                    throw new ArgumentNullException(
-                        $"The environment variable '{Settings.SecurityKeySecret.Identifier}' has not been set");
+                        databasePrimaryKey);
                 }
             }
-
+            else
+            {
+                throw new ArgumentNullException(
+                    $"The environment variable '{Settings.SecurityKeySecret.Identifier}' has not been set");
+            }
             string cosmosDbKey = await _secretResolver.ResolveSecretAsync(Settings.SecurityKeySecret);
             CosmosClient = new CosmosClient(Settings.DatabaseAccountUri, cosmosDbKey);
             await CosmosClient.CreateDatabaseIfNotExistsAsync(Settings.DatabaseName);
