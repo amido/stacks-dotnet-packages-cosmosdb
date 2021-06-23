@@ -8,6 +8,7 @@ namespace Amido.Stacks.Data.Documents.CosmosDB
         public string DatabaseAccountUri { get; set; }
         public string DatabaseName { get; set; }
         public Secret SecurityKeySecret { get; set; }
+        public string PrimaryKey { get; set; }
         
         /// <summary>
         /// Max query concurrency:
