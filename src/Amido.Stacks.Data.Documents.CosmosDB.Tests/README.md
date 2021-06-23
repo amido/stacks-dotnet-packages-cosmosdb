@@ -1,12 +1,9 @@
 ## Testing Guidance
 Prerequisite:
-Install Cosmos DB Emulator to run locally.
+When running on visual studio and configured to run against localhost, we use the CosmosDB emulator without need to set it in advance.
 Documentation is available in https://stacks.amido.com/docs/workloads/azure/backend/java/setting_up_cosmos_db_locally_java/#set-up-cosmos-db-emulator-locally
 
 CosmosDB tests retrieve the key to connect to CosmosDB from Environment Variables(COSMOSDB_KEY, and primary key which are configured in the appsettings.json).
-
-
-When running on visual studio and configured to run against localhost, we use the CosmosDB emulator without need to set it in advance.
 
 If you change from the Local CosmosDB emulator to an azure instance, or you run the tests outside the pipeline, you have to set the new url in the appsetting.json and also set the environment variable COSMOSDB_KEY before running the tests.
 
