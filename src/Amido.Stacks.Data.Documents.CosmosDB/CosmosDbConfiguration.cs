@@ -6,16 +6,10 @@ namespace Amido.Stacks.Data.Documents.CosmosDB
     public class CosmosDbConfiguration
     {
         public string DatabaseAccountUri { get; set; }
-
         public string DatabaseName { get; set; }
-
-        //public string SecurityKey { get; set; }
         public Secret SecurityKeySecret { get; set; }
-
-        //public bool ReturnETags { get; set; }
-
-        //public bool ReturnRequestCharge { get; set; }
-
+        public string PrimaryKey { get; set; }
+        
         /// <summary>
         /// Max query concurrency:
         ///  -1 = Dynamic, defined by server
@@ -40,8 +34,5 @@ namespace Amido.Stacks.Data.Documents.CosmosDB
         /// </summary>
         public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
-        //public int? ResponseContinuationTokenLimitInKb
-        //public bool? EnableScanInQuery
-        //public bool? EnableLowPrecisionOrderBy
     }
 }

@@ -33,8 +33,7 @@ namespace Amido.Stacks.Data.Documents.CosmosDB.Tests.Integration
                 if (Settings.DatabaseAccountUri.Contains("localhost", StringComparison.InvariantCultureIgnoreCase) &&
                     Environment.GetEnvironmentVariable("VisualStudioEdition") != null)
                 {
-                    Environment.SetEnvironmentVariable(Settings.SecurityKeySecret.Identifier,
-                        "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==");
+                    Environment.SetEnvironmentVariable(Settings.SecurityKeySecret.Identifier,this.Settings.PrimaryKey);
                 }
                 else
                 {
